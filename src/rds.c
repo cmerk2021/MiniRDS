@@ -229,8 +229,22 @@ static uint8_t get_rds_ct_group(uint16_t *blocks) {
 		/* get local time (for the offset) */
 		local_time = localtime(&now);
 
+#ifdef _WIN32
+		{
+			TIME_ZONE_INFORMATION tzi;
+			DWORD tz_result = GetTimeZoneInformation(&tzi);
+			long bias_minutes = tzi.Bias;
+			if (tz_result == TIME_ZONE_ID_DAYLIGHT)
+				bias_minutes += tzi.DaylightBias;
+			else if (tz_result == TIME_ZONE_ID_STANDARD)
+				bias_minutes += tzi.StandardBias;
+			/* bias is in minutes west of UTC (negative = east) */
+			offset = -(bias_minutes / 30);
+		}
+#else
 		/* tm_gmtoff doesn't exist in POSIX but __tm_gmtoff does */
 		offset = local_time->__tm_gmtoff / (30 * 60);
+#endif
 		if (offset < 0) {
 			blocks[3] |= 1 << 5;
 			blocks[3] |= abs(offset);
@@ -558,7 +572,11 @@ void init_rds_encoder(struct rds_params_t rds_params) {
 	init_rds_objects();
 #ifdef RDS2
 	/* XXX: don't hardcode file paths */
+#ifdef _WIN32
+	init_rds2_encoder("rds2-image\\stationlogo.png");
+#else
 	init_rds2_encoder("/tmp/rds2-image/stationlogo.png");
+#endif
 #endif
 }
 

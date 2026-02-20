@@ -18,8 +18,14 @@
 
 #include "common.h"
 #include <signal.h>
-#include <getopt.h>
-#include <pthread.h>
+
+#ifdef _WIN32
+  #include "getopt.h"
+#else
+  #include <getopt.h>
+  #include <pthread.h>
+#endif
+
 #include <ao/ao.h>
 
 #include "rds.h"
@@ -35,6 +41,14 @@ static uint8_t stop_rds;
 static void stop() {
 	stop_rds = 1;
 }
+
+#ifdef _WIN32
+static BOOL WINAPI console_ctrl_handler(DWORD ctrl_type) {
+	(void)ctrl_type;
+	stop();
+	return TRUE;
+}
+#endif
 
 static inline void float2char2channel(
 	float *inbuf, char *outbuf, size_t frames) {
@@ -61,6 +75,29 @@ static inline void float2char2channel(
 }
 
 /* threads */
+#ifdef _WIN32
+static DWORD WINAPI control_pipe_worker(LPVOID param) {
+	(void)param;
+	while (!stop_rds) {
+		poll_control_pipe();
+		msleep(READ_TIMEOUT_MS);
+	}
+
+	close_control_pipe();
+	return 0;
+}
+
+static DWORD WINAPI net_ctl_worker(LPVOID param) {
+	(void)param;
+	while (!stop_rds) {
+		poll_ctl_socket();
+		msleep(READ_TIMEOUT_MS);
+	}
+
+	close_ctl_socket();
+	return 0;
+}
+#else
 static void *control_pipe_worker() {
 	while (!stop_rds) {
 		poll_control_pipe();
@@ -80,6 +117,7 @@ static void *net_ctl_worker() {
 	close_ctl_socket();
 	pthread_exit(NULL);
 }
+#endif
 
 static void show_help(char *name, struct rds_params_t def_params) {
 	printf(
@@ -168,6 +206,11 @@ int main(int argc, char **argv) {
 	ao_device *device;
 	ao_sample_format format;
 
+#ifdef _WIN32
+	/* Windows threads */
+	HANDLE control_pipe_thread = NULL;
+	HANDLE net_ctl_thread = NULL;
+#else
 	/* pthread */
 	pthread_attr_t attr;
 	pthread_t control_pipe_thread;
@@ -178,6 +221,7 @@ int main(int argc, char **argv) {
 	pthread_t net_ctl_thread;
 	pthread_mutex_t net_ctl_mutex = PTHREAD_MUTEX_INITIALIZER;
 	pthread_cond_t net_ctl_cond;
+#endif
 
 	const char	*short_opt = "m:R:i:s:r:p:T:A:P:"
 #ifdef RBDS
@@ -274,12 +318,16 @@ keep_parsing_opts:
 
 done_parsing_opts:
 
+#ifdef _WIN32
+	/* No pthread init needed on Windows */
+#else
 	/* Initialize pthread stuff */
 	pthread_mutex_init(&control_pipe_mutex, NULL);
 	pthread_cond_init(&control_pipe_cond, NULL);
 	pthread_mutex_init(&net_ctl_mutex, NULL);
 	pthread_cond_init(&net_ctl_cond, NULL);
 	pthread_attr_init(&attr);
+#endif
 
 	/* Setup buffers */
 	mpx_buffer = malloc(NUM_MPX_FRAMES_IN * 2 * sizeof(float));
@@ -287,8 +335,13 @@ done_parsing_opts:
 	dev_out = malloc(NUM_MPX_FRAMES_OUT * 2 * sizeof(int16_t) * sizeof(char));
 
 	/* Gracefully stop the encoder on SIGINT or SIGTERM */
+#ifdef _WIN32
+	SetConsoleCtrlHandler(console_ctrl_handler, TRUE);
+	signal(SIGINT, stop);
+#else
 	signal(SIGINT, stop);
 	signal(SIGTERM, stop);
+#endif
 
 	/* Initialize the baseband generator */
 	fm_mpx_init(MPX_SAMPLE_RATE);
@@ -333,8 +386,13 @@ done_parsing_opts:
 		if (open_control_pipe(control_pipe) == 0) {
 			fprintf(stderr, "Reading control commands on %s.\n", control_pipe);
 			/* Create control pipe polling worker */
+#ifdef _WIN32
+			control_pipe_thread = CreateThread(NULL, 0, control_pipe_worker, NULL, 0, NULL);
+			if (control_pipe_thread == NULL) {
+#else
 			r = pthread_create(&control_pipe_thread, &attr, control_pipe_worker, NULL);
 			if (r < 0) {
+#endif
 				fprintf(stderr, "Could not create control pipe thread.\n");
 				control_pipe[0] = 0;
 				goto exit;
@@ -349,10 +407,18 @@ done_parsing_opts:
 
 	/* ASCII control over network socket */
 	if (port) {
+#ifdef _WIN32
+		net_init();
+#endif
 		if (open_ctl_socket(port, proto) == 0) {
 			fprintf(stderr, "Reading control commands on port %d.\n", port);
+#ifdef _WIN32
+			net_ctl_thread = CreateThread(NULL, 0, net_ctl_worker, NULL, 0, NULL);
+			if (net_ctl_thread == NULL) {
+#else
 			r = pthread_create(&net_ctl_thread, &attr, net_ctl_worker, NULL);
 			if (r < 0) {
+#endif
 				fprintf(stderr, "Could not create network control thread.\n");
 				goto exit;
 			} else {
@@ -388,17 +454,30 @@ exit:
 	if (control_pipe[0]) {
 		/* shut down threads */
 		fprintf(stderr, "Waiting for pipe thread to shut down.\n");
+#ifdef _WIN32
+		WaitForSingleObject(control_pipe_thread, INFINITE);
+		CloseHandle(control_pipe_thread);
+#else
 		pthread_cond_signal(&control_pipe_cond);
 		pthread_join(control_pipe_thread, NULL);
+#endif
 	}
 
 	if (port) {
 		fprintf(stderr, "Waiting for net socket thread to shut down.\n");
+#ifdef _WIN32
+		WaitForSingleObject(net_ctl_thread, INFINITE);
+		CloseHandle(net_ctl_thread);
+		net_cleanup();
+#else
 		pthread_cond_signal(&net_ctl_cond);
 		pthread_join(net_ctl_thread, NULL);
+#endif
 	}
 
+#ifndef _WIN32
 	pthread_attr_destroy(&attr);
+#endif
 
 	fm_mpx_exit();
 	exit_rds_encoder();

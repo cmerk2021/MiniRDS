@@ -25,6 +25,118 @@
 #include "net.h"
 #include "ascii_cmd.h"
 
+#ifdef _WIN32
+/* Windows implementation */
+
+static SOCKET listener_fd = INVALID_SOCKET;
+static SOCKET current_fd = INVALID_SOCKET;
+static struct sockaddr_in6 my_sock;
+static struct sockaddr_in6 peer_sock;
+static socklen_t peer_addr_size;
+
+uint8_t already_connected = 0;
+
+void net_init() {
+	WSADATA wsaData;
+	WSAStartup(MAKEWORD(2, 2), &wsaData);
+}
+
+void net_cleanup() {
+	WSACleanup();
+}
+
+int open_ctl_socket(uint16_t port, uint8_t proto) {
+	struct in6_addr my_addr;
+	unsigned char listen_addr[sizeof(struct in6_addr)];
+	u_long mode = 1; /* non-blocking */
+
+	listener_fd = socket(AF_INET6, proto ? SOCK_STREAM : SOCK_DGRAM, 0);
+	if (listener_fd == INVALID_SOCKET) return -1;
+
+	memset(&my_sock, 0, sizeof(struct sockaddr_in6));
+	memset(&my_addr, 0, sizeof(struct in6_addr));
+	memset(&peer_sock, 0, sizeof(struct sockaddr_in6));
+	memset(listen_addr, 0, sizeof(struct in6_addr));
+
+	my_sock.sin6_family = AF_INET6;
+	inet_pton(AF_INET6, "::", &listen_addr);
+	memcpy(my_addr.s6_addr, listen_addr, sizeof(struct in6_addr));
+	my_sock.sin6_addr = my_addr;
+	my_sock.sin6_port = htons(port);
+
+	if (bind(listener_fd, (struct sockaddr *)&my_sock,
+		sizeof(struct sockaddr_in6)) == SOCKET_ERROR)
+		return -1;
+
+	listen(listener_fd, 1);
+
+	/* set non-blocking mode */
+	ioctlsocket(listener_fd, FIONBIO, &mode);
+
+	peer_addr_size = sizeof(struct sockaddr_in6);
+
+	return 0;
+}
+
+void poll_ctl_socket() {
+	static unsigned char pipe_buf[CTL_BUFFER_SIZE];
+	static unsigned char cmd_buf[CMD_BUFFER_SIZE];
+	char *token;
+	fd_set readfds;
+	struct timeval tv;
+	int ret;
+
+	tv.tv_sec = 0;
+	tv.tv_usec = READ_TIMEOUT_MS * 1000;
+
+	if (!already_connected) {
+		FD_ZERO(&readfds);
+		FD_SET(listener_fd, &readfds);
+
+		ret = select(0, &readfds, NULL, NULL, &tv);
+		if (ret <= 0) return;
+
+		current_fd = accept(listener_fd, (struct sockaddr *)&peer_sock,
+			&peer_addr_size);
+		if (current_fd == INVALID_SOCKET)
+			return;
+
+		already_connected = 1;
+		return;
+	}
+
+	FD_ZERO(&readfds);
+	FD_SET(current_fd, &readfds);
+
+	ret = select(0, &readfds, NULL, NULL, &tv);
+	if (ret <= 0) return;
+
+	memset(pipe_buf, 0, CTL_BUFFER_SIZE);
+	ret = recv(current_fd, (char *)pipe_buf, CTL_BUFFER_SIZE - 1, 0);
+	if (ret <= 0) {
+		already_connected = 0;
+		closesocket(current_fd);
+		current_fd = INVALID_SOCKET;
+		return;
+	}
+
+	token = strtok((char *)pipe_buf, "\n");
+	while (token != NULL) {
+		memset(cmd_buf, 0, CMD_BUFFER_SIZE);
+		memcpy(cmd_buf, token, CMD_BUFFER_SIZE - 1);
+		token = strtok(NULL, "\n");
+
+		process_ascii_cmd(cmd_buf);
+	}
+}
+
+void close_ctl_socket() {
+	if (current_fd != INVALID_SOCKET) closesocket(current_fd);
+	if (listener_fd != INVALID_SOCKET) closesocket(listener_fd);
+}
+
+#else /* POSIX */
+
 static int listener_fd; /* fd of the listener */
 static int current_fd; /* fd of the current connection */
 static struct sockaddr_in6 my_sock;
@@ -145,3 +257,5 @@ void close_ctl_socket() {
 	if (current_fd > 0) close(current_fd);
 	if (listener_fd > 0) close(listener_fd);
 }
+
+#endif /* _WIN32 */

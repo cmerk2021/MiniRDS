@@ -27,14 +27,101 @@ This software is currently used as the RDS encoder for KPSK in Los Angeles, CA, 
 RDS2 image reception in action: https://www.bitchute.com/video/sNXyTCCAYA8l/
 
 ## Build
-For Debian-like distros: `sudo apt-get install libao-dev libsamplerate0-dev` to install deps.
 
-Once those are installed, run
+### Linux (Debian/Ubuntu)
+
+Install deps: `sudo apt-get install libao-dev libsamplerate0-dev`
+
+Then build:
 ```sh
-git clone https://github.com/Anthony96922/MiniRDS
+git clone https://github.com/cmerk2021/MiniRDS
 cd MiniRDS/src
 make
 ```
+
+Alternatively, using CMake:
+```sh
+git clone https://github.com/Anthony96922/MiniRDS
+cd MiniRDS
+mkdir build && cd build
+cmake ..
+cmake --build .
+```
+
+### Windows
+
+MiniRDS can be built on Windows using **MSYS2/MinGW-w64** or **CMake with vcpkg**.
+
+#### Option A: MSYS2 / MinGW-w64 (Recommended)
+
+1. **Install MSYS2** from https://www.msys2.org/
+
+2. **Open the MSYS2 UCRT64 terminal** and install dependencies:
+   ```sh
+   pacman -Syu
+   pacman -S mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-make
+   pacman -S mingw-w64-ucrt-x86_64-libao mingw-w64-ucrt-x86_64-libsamplerate
+   ```
+
+3. **Clone and build**:
+   ```sh
+   git clone https://github.com/cmerk2021/MiniRDS
+   cd MiniRDS
+   mkdir build && cd build
+   cmake -G "MinGW Makefiles" ..
+   cmake --build .
+   ```
+
+4. The `minirds.exe` executable will be in the `build/` directory.
+
+5. **To run**, make sure the MinGW DLLs are accessible. Either:
+   - Run from the MSYS2 UCRT64 terminal, or
+   - Copy the required DLLs (`libao-4.dll`, `libsamplerate-0.dll`, `libgcc_s_seh-1.dll`, `libwinpthread-1.dll`, `libstdc++-6.dll`) from `C:\msys64\ucrt64\bin\` into the same folder as `minirds.exe`.
+
+#### Option B: CMake + vcpkg (Visual Studio)
+
+1. **Install prerequisites**:
+   - [Visual Studio 2022](https://visualstudio.microsoft.com/) with "Desktop development with C++" workload
+   - [CMake](https://cmake.org/download/) (3.14 or later)
+   - [vcpkg](https://github.com/microsoft/vcpkg):
+     ```powershell
+     git clone https://github.com/microsoft/vcpkg.git C:\vcpkg
+     C:\vcpkg\bootstrap-vcpkg.bat
+     ```
+
+2. **Install dependencies via vcpkg**:
+   ```powershell
+   C:\vcpkg\vcpkg install libao:x64-windows libsamplerate:x64-windows
+   ```
+   > Note: If `libao` is not available via vcpkg, use the MSYS2 method instead.
+
+3. **Clone and build**:
+   ```powershell
+   git clone https://github.com/Anthony96922/MiniRDS
+   cd MiniRDS
+   mkdir build; cd build
+   cmake -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake ..
+   cmake --build . --config Release
+   ```
+
+4. The `minirds.exe` executable will be in `build\Release\`.
+
+#### Windows Notes
+
+- **Control pipe**: On Windows, the `--ctl` option creates a Windows Named Pipe instead of a UNIX FIFO. The pipe name is automatically prefixed with `\\.\pipe\` if you pass a simple name (e.g., `--ctl minirds` creates `\\.\pipe\minirds`). You can write commands to it using PowerShell:
+  ```powershell
+  # Example: change PS text
+  $pipe = New-Object System.IO.Pipes.NamedPipeClientStream(".", "minirds", [System.IO.Pipes.PipeDirection]::Out)
+  $pipe.Connect(1000)
+  $writer = New-Object System.IO.StreamWriter($pipe)
+  $writer.WriteLine("PS MyRadio")
+  $writer.Flush()
+  $writer.Close()
+  ```
+
+- **Network control**: The socket-based control (`--port`) works the same way on both platforms.
+
+- **RDS2 station logo**: On Windows, the default station logo path is `rds2-image\stationlogo.png` relative to the working directory (instead of `/tmp/rds2-image/stationlogo.png` on Linux).
 
 ## How to use
 Simply run:

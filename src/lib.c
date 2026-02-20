@@ -24,6 +24,12 @@
  *
  */
 
+#ifdef _WIN32
+/* millisecond sleep */
+void msleep(unsigned long ms) {
+	Sleep((DWORD)ms);
+}
+#else
 /* needed workaround implicit declaration */
 extern int nanosleep(const struct timespec *req, struct timespec *rem);
 
@@ -34,6 +40,7 @@ void msleep(unsigned long ms) {
 	ts.tv_nsec = (ms % 1000ul) * 1000;	/* remainder, in nanoseconds */
 	nanosleep(&ts, NULL);
 }
+#endif
 
 /* unsigned equivalent of strcmp */
 int ustrcmp(const unsigned char *s1, const unsigned char *s2) {

@@ -16,9 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <fcntl.h>
-#include <poll.h>
-#include <sys/select.h>
+#ifndef _WIN32
+  #include <fcntl.h>
+  #include <poll.h>
+  #include <sys/select.h>
+#endif
 
 extern int open_control_pipe(char *filename);
 extern void close_control_pipe();

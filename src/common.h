@@ -20,12 +20,23 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <string.h>
 #include <math.h>
 #include <stdbool.h>
 /* needed for clock time */
 #include <time.h>
+
+#ifdef _WIN32
+  #define WIN32_LEAN_AND_MEAN
+  #include <windows.h>
+  #include <io.h>
+  #include <direct.h>
+  /* Map POSIX names to Windows equivalents */
+  #define strcasecmp _stricmp
+  #define strncasecmp _strnicmp
+#else
+  #include <unistd.h>
+#endif
 
 /* workaround for missing pi definition */
 #ifndef M_PI

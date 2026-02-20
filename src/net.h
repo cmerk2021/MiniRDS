@@ -16,12 +16,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <fcntl.h>
-#include <poll.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
+#ifdef _WIN32
+  #include <winsock2.h>
+  #include <ws2tcpip.h>
+  #pragma comment(lib, "ws2_32.lib")
+  typedef int socklen_t;
+#else
+  #include <fcntl.h>
+  #include <poll.h>
+  #include <sys/socket.h>
+  #include <netinet/in.h>
+  #include <arpa/inet.h>
+#endif
 
 extern int open_ctl_socket(uint16_t port, uint8_t proto);
 extern void close_ctl_socket();
 extern void poll_ctl_socket();
+
+#ifdef _WIN32
+extern void net_init();
+extern void net_cleanup();
+#endif
