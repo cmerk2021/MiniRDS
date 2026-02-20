@@ -36,17 +36,26 @@
 #include "lib.h"
 #include "ascii_cmd.h"
 
-static uint8_t stop_rds;
+static volatile uint8_t stop_rds;
 
-static void stop() {
+static void stop(int sig) {
+	(void)sig;
 	stop_rds = 1;
 }
 
 #ifdef _WIN32
 static BOOL WINAPI console_ctrl_handler(DWORD ctrl_type) {
-	(void)ctrl_type;
-	stop();
-	return TRUE;
+	switch (ctrl_type) {
+	case CTRL_C_EVENT:
+	case CTRL_BREAK_EVENT:
+	case CTRL_CLOSE_EVENT:
+		fprintf(stderr, "Received console ctrl event %lu, stopping...\n",
+			(unsigned long)ctrl_type);
+		stop_rds = 1;
+		return TRUE;
+	default:
+		return FALSE;
+	}
 }
 #endif
 
@@ -359,11 +368,47 @@ done_parsing_opts:
 
 	ao_initialize();
 
-	device = ao_open_live(ao_default_driver_id(), &format, NULL);
-	if (device == NULL) {
-		fprintf(stderr, "Error: cannot open sound device.\n");
-		ao_shutdown();
-		goto exit;
+	{
+		int default_driver = ao_default_driver_id();
+		ao_info *driver_info = NULL;
+
+		if (default_driver < 0) {
+			fprintf(stderr, "Error: ao_default_driver_id() returned %d "
+				"(no usable audio driver found).\n", default_driver);
+			ao_shutdown();
+			goto exit;
+		}
+
+		driver_info = ao_driver_info(default_driver);
+		if (driver_info) {
+			fprintf(stderr, "Audio driver: %s (%s), type: %s\n",
+				driver_info->name,
+				driver_info->short_name,
+				driver_info->type == AO_TYPE_LIVE ? "live" : "file");
+		} else {
+			fprintf(stderr, "Warning: could not query driver info for driver %d.\n",
+				default_driver);
+		}
+
+		fprintf(stderr, "Opening audio device: %d-bit, %d channels, %d Hz...\n",
+			format.bits, format.channels, format.rate);
+
+		device = ao_open_live(default_driver, &format, NULL);
+		if (device == NULL) {
+			fprintf(stderr, "Error: cannot open sound device "
+				"(driver=%d, rate=%d, bits=%d, channels=%d).\n",
+				default_driver, format.rate, format.bits, format.channels);
+			fprintf(stderr, "Hint: your audio driver may not support %d Hz. "
+				"Check system audio settings.\n", format.rate);
+#ifdef _WIN32
+			fprintf(stderr, "Windows: try setting your sound device to "
+				"192000 Hz in Sound Settings > Properties > Advanced.\n");
+#endif
+			ao_shutdown();
+			goto exit;
+		}
+
+		fprintf(stderr, "Audio device opened successfully.\n");
 	}
 
 	/* SRC out (MPX -> output) */
@@ -375,11 +420,16 @@ done_parsing_opts:
 	src_data.data_in = mpx_buffer;
 	src_data.data_out = out_buffer;
 
+	fprintf(stderr, "Resampler: ratio=%.6f, in_frames=%d, out_frames=%d\n",
+		src_data.src_ratio, NUM_MPX_FRAMES_IN, NUM_MPX_FRAMES_OUT);
+
 	r = resampler_init(&src_state, 2);
 	if (r < 0) {
 		fprintf(stderr, "Could not create output resampler.\n");
 		goto exit;
 	}
+
+	fprintf(stderr, "Resampler initialized.\n");
 
 	/* Initialize the control pipe reader */
 	if (control_pipe[0]) {
@@ -429,26 +479,61 @@ done_parsing_opts:
 		}
 	}
 
-	for (;;) {
-		fm_rds_get_frames(mpx_buffer, NUM_MPX_FRAMES_IN);
+	fprintf(stderr, "Entering main loop (generating RDS at %d Hz, "
+		"output at %d Hz)...\n", MPX_SAMPLE_RATE, OUTPUT_SAMPLE_RATE);
 
-		if (resample(src_state, src_data, &frames) < 0) break;
+	{
+		unsigned long loop_count = 0;
+		unsigned long total_frames = 0;
 
-		float2char2channel(out_buffer, dev_out, frames);
+		for (;;) {
+			fm_rds_get_frames(mpx_buffer, NUM_MPX_FRAMES_IN);
 
-		/* num_bytes = audio frames * channels * bytes per sample */
-		if (!ao_play(device, dev_out, frames * 2 * sizeof(int16_t))) {
-			fprintf(stderr, "Error: could not play audio.\n");
-			break;
-		}
+			if (resample(src_state, src_data, &frames) < 0) {
+				fprintf(stderr, "Error: resampler failed at iteration %lu "
+					"(total frames: %lu).\n", loop_count, total_frames);
+				break;
+			}
 
-		if (stop_rds) {
-			fprintf(stderr, "Stopping...\n");
-			break;
+			if (frames == 0) {
+				fprintf(stderr, "Warning: resampler produced 0 frames at "
+					"iteration %lu.\n", loop_count);
+				continue;
+			}
+
+			float2char2channel(out_buffer, dev_out, frames);
+
+			/* num_bytes = audio frames * channels * bytes per sample */
+			if (!ao_play(device, dev_out, frames * 2 * sizeof(int16_t))) {
+				fprintf(stderr, "Error: ao_play failed at iteration %lu "
+					"(total frames: %lu, buffer size: %lu bytes).\n",
+					loop_count, total_frames,
+					(unsigned long)(frames * 2 * sizeof(int16_t)));
+#ifdef _WIN32
+				fprintf(stderr, "Windows audio error. "
+					"Try checking audio device compatibility.\n");
+#endif
+				break;
+			}
+
+			total_frames += frames;
+			loop_count++;
+
+			if (loop_count == 1) {
+				fprintf(stderr, "RDS output started. First buffer: "
+					"%lu frames.\n", (unsigned long)frames);
+			}
+
+			if (stop_rds) {
+				fprintf(stderr, "Stopping after %lu iterations "
+					"(%lu total frames).\n", loop_count, total_frames);
+				break;
+			}
 		}
 	}
 
 	resampler_exit(src_state);
+	ao_close(device);
 
 exit:
 	if (control_pipe[0]) {
@@ -479,12 +564,16 @@ exit:
 	pthread_attr_destroy(&attr);
 #endif
 
+	ao_shutdown();
+
 	fm_mpx_exit();
 	exit_rds_encoder();
 
 	free(mpx_buffer);
 	free(out_buffer);
 	free(dev_out);
+
+	fprintf(stderr, "Cleanup complete.\n");
 
 	return 0;
 }
