@@ -196,6 +196,9 @@ int main(int argc, char **argv) {
 	};
 	float volume = 50.0f;
 
+	/* Force unbuffered stderr so crash diagnostics are always visible */
+	setvbuf(stderr, NULL, _IONBF, 0);
+
 	/* buffers */
 	float *mpx_buffer;
 	float *out_buffer;
@@ -346,7 +349,6 @@ done_parsing_opts:
 	/* Gracefully stop the encoder on SIGINT or SIGTERM */
 #ifdef _WIN32
 	SetConsoleCtrlHandler(console_ctrl_handler, TRUE);
-	signal(SIGINT, stop);
 #else
 	signal(SIGINT, stop);
 	signal(SIGTERM, stop);
@@ -487,7 +489,13 @@ done_parsing_opts:
 		unsigned long total_frames = 0;
 
 		for (;;) {
+			if (loop_count < 3)
+				fprintf(stderr, "[iter %lu] Generating MPX frames...\n", loop_count);
+
 			fm_rds_get_frames(mpx_buffer, NUM_MPX_FRAMES_IN);
+
+			if (loop_count < 3)
+				fprintf(stderr, "[iter %lu] Resampling...\n", loop_count);
 
 			if (resample(src_state, src_data, &frames) < 0) {
 				fprintf(stderr, "Error: resampler failed at iteration %lu "
@@ -501,7 +509,15 @@ done_parsing_opts:
 				continue;
 			}
 
+			if (loop_count < 3)
+				fprintf(stderr, "[iter %lu] Converting %lu frames...\n",
+					loop_count, (unsigned long)frames);
+
 			float2char2channel(out_buffer, dev_out, frames);
+
+			if (loop_count < 3)
+				fprintf(stderr, "[iter %lu] Playing %lu bytes...\n",
+					loop_count, (unsigned long)(frames * 2 * sizeof(int16_t)));
 
 			/* num_bytes = audio frames * channels * bytes per sample */
 			if (!ao_play(device, dev_out, frames * 2 * sizeof(int16_t))) {
@@ -509,10 +525,6 @@ done_parsing_opts:
 					"(total frames: %lu, buffer size: %lu bytes).\n",
 					loop_count, total_frames,
 					(unsigned long)(frames * 2 * sizeof(int16_t)));
-#ifdef _WIN32
-				fprintf(stderr, "Windows audio error. "
-					"Try checking audio device compatibility.\n");
-#endif
 				break;
 			}
 
@@ -520,8 +532,7 @@ done_parsing_opts:
 			loop_count++;
 
 			if (loop_count == 1) {
-				fprintf(stderr, "RDS output started. First buffer: "
-					"%lu frames.\n", (unsigned long)frames);
+				fprintf(stderr, "RDS output started successfully.\n");
 			}
 
 			if (stop_rds) {

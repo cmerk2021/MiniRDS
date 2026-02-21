@@ -310,4 +310,16 @@ extern void set_rds_ct(uint8_t ct);
 extern void set_rds_di(uint8_t di);
 extern float get_rds_sample(uint8_t stream_num);
 
+/* Read-back functions for GUI monitor */
+extern void get_rds_params_copy(struct rds_params_t *out);
+
+struct rds_rtplus_info_t {
+	uint8_t running;
+	uint8_t toggle;
+	uint8_t type[2];
+	uint8_t start[2];
+	uint8_t len[2];
+};
+extern void get_rds_rtplus_info(struct rds_rtplus_info_t *out);
+
 #endif /* RDS_H */

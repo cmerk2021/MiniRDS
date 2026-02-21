@@ -33,13 +33,13 @@ static float **waveform;
  *
  */
 void init_rds_objects() {
-	rds_ctx = malloc(NUM_STREAMS * sizeof(struct rds_t));
+	rds_ctx = malloc(NUM_STREAMS * sizeof(struct rds_t *));
 
 	for (uint8_t i = 0; i < NUM_STREAMS; i++) {
-		rds_ctx[i] = malloc(sizeof(struct rds_t));
-		rds_ctx[i]->bit_buffer = malloc(BITS_PER_GROUP);
+		rds_ctx[i] = calloc(1, sizeof(struct rds_t));
+		rds_ctx[i]->bit_buffer = calloc(BITS_PER_GROUP, 1);
 		rds_ctx[i]->sample_buffer =
-			malloc(SAMPLE_BUFFER_SIZE * sizeof(float));
+			calloc(SAMPLE_BUFFER_SIZE, sizeof(float));
 
 #ifdef RDS2_SYMBOL_SHIFTING
 		/*
@@ -84,7 +84,7 @@ void init_rds_objects() {
 
 	}
 
-	waveform = malloc(2 * sizeof(float));
+	waveform = malloc(2 * sizeof(float *));
 
 	for (uint8_t i = 0; i < 2; i++) {
 		waveform[i] = malloc(FILTER_SIZE * sizeof(float));
@@ -99,10 +99,10 @@ void exit_rds_objects() {
 	for (uint8_t i = 0; i < NUM_STREAMS; i++) {
 		free(rds_ctx[i]->sample_buffer);
 		free(rds_ctx[i]->bit_buffer);
-		free(rds_ctx[i]);
-		if (rds_ctx[i]->symbol_shift) {
+		if (rds_ctx[i]->symbol_shift && rds_ctx[i]->symbol_shift_buf) {
 			free(rds_ctx[i]->symbol_shift_buf);
 		}
+		free(rds_ctx[i]);
 	}
 
 	free(rds_ctx);

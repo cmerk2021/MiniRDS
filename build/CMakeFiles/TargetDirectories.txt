@@ -1,0 +1,9 @@
+C:/Code Projects/MiniRDS/build/CMakeFiles/minirds_core.dir
+C:/Code Projects/MiniRDS/build/CMakeFiles/minirds.dir
+C:/Code Projects/MiniRDS/build/CMakeFiles/minirds_gui.dir
+C:/Code Projects/MiniRDS/build/CMakeFiles/edit_cache.dir
+C:/Code Projects/MiniRDS/build/CMakeFiles/rebuild_cache.dir
+C:/Code Projects/MiniRDS/build/CMakeFiles/list_install_components.dir
+C:/Code Projects/MiniRDS/build/CMakeFiles/install.dir
+C:/Code Projects/MiniRDS/build/CMakeFiles/install/local.dir
+C:/Code Projects/MiniRDS/build/CMakeFiles/install/strip.dir

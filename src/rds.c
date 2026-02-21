@@ -769,3 +769,18 @@ void set_rds_di(uint8_t di) {
 void set_rds_ct(uint8_t ct) {
 	rds_data.tx_ctime = ct & INT8_0;
 }
+
+void get_rds_params_copy(struct rds_params_t *out) {
+	memcpy(out, &rds_data, sizeof(struct rds_params_t));
+}
+
+void get_rds_rtplus_info(struct rds_rtplus_info_t *out) {
+	out->running = rtplus_cfg.running;
+	out->toggle = rtplus_cfg.toggle;
+	out->type[0] = rtplus_cfg.type[0];
+	out->start[0] = rtplus_cfg.start[0];
+	out->len[0] = rtplus_cfg.len[0];
+	out->type[1] = rtplus_cfg.type[1];
+	out->start[1] = rtplus_cfg.start[1];
+	out->len[1] = rtplus_cfg.len[1];
+}

@@ -72,7 +72,12 @@ MiniRDS can be built on Windows using **MSYS2/MinGW-w64** or **CMake with vcpkg*
    cmake --build .
    ```
 
-4. The `minirds.exe` executable will be in the `build/` directory.
+4. The `minirds.exe` (CLI) and `minirds_gui.exe` (GUI) executables will be in the `build/` directory.
+
+   To build only the CLI without the GUI:
+   ```sh
+   cmake -G "MinGW Makefiles" -DBUILD_GUI=OFF ..
+   ```
 
 5. **To run**, make sure the MinGW DLLs are accessible. Either:
    - Run from the MSYS2 UCRT64 terminal, or
@@ -124,6 +129,29 @@ MiniRDS can be built on Windows using **MSYS2/MinGW-w64** or **CMake with vcpkg*
 - **RDS2 station logo**: On Windows, the default station logo path is `rds2-image\stationlogo.png` relative to the working directory (instead of `/tmp/rds2-image/stationlogo.png` on Linux).
 
 ## How to use
+
+### GUI Mode (Windows)
+
+Run `minirds_gui.exe` for a graphical interface that provides:
+
+- **RDS Settings**: Edit PI code, PS, RT, PTY, PTYN, AF frequencies, Long PS, and eRT. Toggle TP/TA/MS flags with checkboxes. Click "Apply Settings" to update parameters in real-time while the encoder is running.
+- **Audio Output**: Select from available Windows audio devices (enumerated via WMM). Adjust output volume with the slider.
+- **Control**: Start/Stop the RDS encoder. Load and execute command files (text files containing one ASCII command per line — same format as the control pipe).
+- **Log**: Real-time log output showing encoder status, errors, and diagnostics.
+
+**Command files** are plain text files with one command per line (lines starting with `#` are comments). See the [command list](doc/command_list.md) for valid commands. Example:
+```
+# Set station info
+PS MyRadio
+RT Now playing: Great Music
+PTY 10
+TP ON
+AF 98.1
+AF 101.3
+```
+
+### CLI Mode
+
 Simply run:
 ```
 ./minirds
