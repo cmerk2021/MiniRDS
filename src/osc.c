@@ -69,9 +69,27 @@ void osc_init(struct osc_t *osc, uint32_t sample_rate, float freq) {
 	/* sample rate for the objects */
 	osc->sample_rate = sample_rate;
 
-	/* waveform tables */
-	osc->sin_wave = malloc(osc->sample_rate * sizeof(float));
-	osc->cos_wave = malloc(osc->sample_rate * sizeof(float));
+	/*
+	 * Compute the exact period length first so we only allocate
+	 * what is actually needed instead of sample_rate floats.
+	 * This saves ~750 KB per oscillator at 190 kHz.
+	 */
+	uint16_t period = 0;
+	{
+		uint8_t zc = 0;
+		uint16_t i = 1;
+		const double w = M_2PI * (double)freq;
+		while (zc < 2 && i < sample_rate) {
+			double s = sin(w * (double)i / (double)sample_rate);
+			if (s > -0.1e-4 && s < 0.1e-4) zc++;
+			i++;
+		}
+		period = i; /* includes the leading zero sample */
+	}
+
+	/* waveform tables – allocate only one period */
+	osc->sin_wave = malloc(period * sizeof(float));
+	osc->cos_wave = malloc(period * sizeof(float));
 
 	/* set current position to 0 */
 	osc->cur = 0;

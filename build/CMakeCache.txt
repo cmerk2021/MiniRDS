@@ -127,6 +127,9 @@ CMAKE_OBJCOPY:FILEPATH=C:/msys64/ucrt64/bin/objcopy.exe
 //Path to a program.
 CMAKE_OBJDUMP:FILEPATH=C:/msys64/ucrt64/bin/objdump.exe
 
+//No help, variable specified on the command line.
+CMAKE_PREFIX_PATH:UNINITIALIZED=C:/msys64/ucrt64
+
 //Value Computed by CMake
 CMAKE_PROJECT_COMPAT_VERSION:STATIC=
 
