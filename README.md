@@ -50,9 +50,23 @@ cmake --build .
 
 ### Windows
 
-MiniRDS can be built on Windows using **MSYS2/MinGW-w64** or **CMake with vcpkg**.
+#### CMAM Install (Recommended)
 
-#### Option A: MSYS2 / MinGW-w64 (Recommended)
+If you have [CMAM](https://github.com/cmerk2021/CMAM) installed, you can run:
+
+```
+cmam install minirds
+```
+
+This will automatically install the app and all required dependencies, and add it to PATH.
+
+You can then run it by typing `minirds` or `minirds_gui` in the terminal.
+
+#### Manual Build
+
+Alternatively, MiniRDS can be built on Windows using **MSYS2/MinGW-w64** or **CMake with vcpkg**.
+
+##### Option A: MSYS2 / MinGW-w64 (Recommended)
 
 1. **Install MSYS2** from https://www.msys2.org/
 
@@ -83,7 +97,7 @@ MiniRDS can be built on Windows using **MSYS2/MinGW-w64** or **CMake with vcpkg*
    - Run from the MSYS2 UCRT64 terminal, or
    - Copy the required DLLs (`libao-4.dll`, `libsamplerate-0.dll`, `libgcc_s_seh-1.dll`, `libwinpthread-1.dll`, `libstdc++-6.dll`) from `C:\msys64\ucrt64\bin\` into the same folder as `minirds.exe`.
 
-#### Option B: CMake + vcpkg (Visual Studio)
+##### Option B: CMake + vcpkg (Visual Studio)
 
 1. **Install prerequisites**:
    - [Visual Studio 2022](https://visualstudio.microsoft.com/) with "Desktop development with C++" workload
@@ -111,7 +125,7 @@ MiniRDS can be built on Windows using **MSYS2/MinGW-w64** or **CMake with vcpkg*
 
 4. The `minirds.exe` executable will be in `build\Release\`.
 
-#### Windows Notes
+##### Windows Notes
 
 - **Control pipe**: On Windows, the `--ctl` option creates a Windows Named Pipe instead of a UNIX FIFO. The pipe name is automatically prefixed with `\\.\pipe\` if you pass a simple name (e.g., `--ctl minirds` creates `\\.\pipe\minirds`). You can write commands to it using PowerShell:
   ```powershell
