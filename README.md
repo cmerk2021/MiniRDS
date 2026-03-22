@@ -52,6 +52,20 @@ cmake --build .
 
 #### CMAM Install (Recommended)
 
+> [!TIP]
+> ## ⚡ Why use **CMAM** instead of manual install
+>
+> Installing your app via **CMAM** streamlines setup and avoids common headaches:
+>
+> - **Faster and simpler** — one command installs and configures everything.
+> - **Automatic PATH management** — run the app immediately without extra steps.
+> - **Version control** — install specific versions or update easily.
+> - **Checksum verification** — ensures downloads are authentic and uncorrupted.
+> - **Self-updating** — CMAM updates itself automatically.
+> - **Consistent structure** — predictable installation paths and metadata tracking.
+>
+> Using CMAM means less setup stress and a more reliable, polished experience compared to manual installation.
+
 If you have [CMAM](https://github.com/cmerk2021/CMAM) installed, you can run:
 
 ```
